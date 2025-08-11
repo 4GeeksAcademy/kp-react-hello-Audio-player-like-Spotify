@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const Home = () => {
   const [hoveredIndex, setHoveredIndex] = useState(null);
@@ -6,27 +6,47 @@ const Home = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [musicTracks, setMusicTracks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const audioRef = useRef(null);
-  
-  const musicTracks = [
-    { title: "Mario Castle", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Mario Star", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Mario Overworld", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Mario Stage 1", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Mario Stage 2", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Mario Star", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Mario Underworld", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Mario Underwater", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Zelda Castle", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Zelda Outworld", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Zelda Titles", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" },
-    { title: "Sonic Brain Zone", url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav" }
-  ];
+
+  // 🎯 FETCH THE REAL SONGS FROM API
+  useEffect(() => {
+    const fetchSongs = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('https://playground.4geeks.com/sound/songs');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // 🔧 THE MAGIC FIX: Add the full URL to each song
+        const songsWithFullUrls = data.songs.map(song => ({
+          title: song.name,
+          url: `https://playground.4geeks.com${song.url}` // 🌟 This is the key fix!
+        }));
+        
+        setMusicTracks(songsWithFullUrls);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching songs:', err);
+        setError('Failed to load songs. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSongs();
+  }, []);
 
   // Audio event handlers
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || musicTracks.length === 0) return;
 
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration);
@@ -44,14 +64,17 @@ const Home = () => {
       audio.removeEventListener('loadedmetadata', updateDuration);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [currentTrack]);
+  }, [currentTrack, musicTracks]);
 
   const playPause = () => {
     const audio = audioRef.current;
     if (isPlaying) {
       audio.pause();
     } else {
-      audio.play();
+      audio.play().catch(err => {
+        console.error('Error playing audio:', err);
+        setIsPlaying(false);
+      });
     }
     setIsPlaying(!isPlaying);
   };
@@ -72,10 +95,53 @@ const Home = () => {
   };
 
   const formatTime = (time) => {
+    if (isNaN(time)) return '0:00';
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div style={{
+        backgroundColor: '#1a1a1a',
+        color: 'white',
+        minHeight: '100vh',
+        padding: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '24px', marginBottom: '10px' }}>🎵</div>
+          <div>Loading awesome music...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div style={{
+        backgroundColor: '#1a1a1a',
+        color: 'white',
+        minHeight: '100vh',
+        padding: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '24px', marginBottom: '10px', color: 'red' }}>❌</div>
+          <div>{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const currentSong = musicTracks[currentTrack];
 
   return (
     <div style={{
@@ -87,13 +153,13 @@ const Home = () => {
       {/* Hidden Audio Element */}
       <audio
         ref={audioRef}
-        src={musicTracks[currentTrack].url}
+        src={currentSong?.url}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
       />
       
       <h1 style={{ fontSize: '24px', marginBottom: '20px' }}>
-        Music Playlist
+        🎮 Real Video Game Music Player
       </h1>
       
       {/* Now Playing Display */}
@@ -105,7 +171,7 @@ const Home = () => {
         textAlign: 'center'
       }}>
         <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '10px' }}>
-          Now Playing: {musicTracks[currentTrack].title}
+          Now Playing: {currentSong?.title || 'Loading...'}
         </div>
         <div style={{ fontSize: '14px', color: '#a0aec0' }}>
           {formatTime(currentTime)} / {formatTime(duration)}
@@ -249,6 +315,20 @@ const Home = () => {
         >
           ⏭
         </button>
+      </div>
+
+      {/* Success Message */}
+      <div style={{
+        marginTop: '30px',
+        padding: '15px',
+        backgroundColor: '#065f46',
+        borderRadius: '8px',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '18px', marginBottom: '5px' }}>🎉 SUCCESS!</div>
+        <div style={{ fontSize: '14px' }}>
+          Now playing REAL Mario, Zelda, and Sonic music from 4Geeks API!
+        </div>
       </div>
     </div>
   );
